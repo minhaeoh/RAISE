@@ -2,45 +2,24 @@ import os
 import re
 import time
 from datasets import load_dataset
-from dotenv import load_dotenv
-from tqdm import tqdm
 import torch
 from transformers import (
-    AutoTokenizer, 
-    AutoModelForCausalLM,
     DPRQuestionEncoderTokenizer, 
     DPRQuestionEncoder,
     DPRContextEncoderTokenizer,
     DPRContextEncoder
 )
-import faiss
-import gzip
-import csv
-import wandb
-import json
-import numpy as np
-import logging
-import random
-from mistralai import Mistral
-from vllm import LLM, SamplingParams
+from model import Model
 
 class MultiHopSolver:
-    def __init__(self, mode="Step_RAG",trigger=False, trigger_value=0.8, doc_num=10, query_mode="q1"):
-        # Initialize environment
-        env_path = "/path/to/your/.env"
-        load_dotenv(dotenv_path=env_path)
-        
-        # Get API keys from environment variables
-        self.hf_token = os.getenv('HF_TOKEN')
-
+    def __init__(self, mode="Step_RAG",trigger=False, trigger_value=0.8, doc_num=10, query_mode="q1",model_name="mistralai/Mistral-Small-3.1-24B-Instruct-2503"):
         # Initialize counters for tracking overall performance
         self._total_problems = 0
         self._correct_problems = 0
 
         self.mode = mode
-        self.model_id =  "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
-
-
+        self.model_name = model_name
+        
         self.trigger = None
         self.trigger_value = None
         self.doc_num = None
@@ -50,17 +29,17 @@ class MultiHopSolver:
         self.timestamp = time.strftime("%Y%m%d_%H%M%S")
 
         # configuration details to directory name
-        if self.mode == "zeroshot_COT":
-            config_str = "zeroshot_COT"
-        elif self.mode == "zeroshot_PS":
-            config_str = "zeroshot_PS"
+        if self.mode == "Direct_COT":
+            config_str = "Direct_COT"
+        elif self.mode == "Direct_PS":
+            config_str = "Direct_PS"
         elif self.mode == "step-back":
             config_str = "step-back"
-        elif self.mode == "zeroshot_RAG":
+        elif self.mode == "Direct_RAG":
             self.query_mode = query_mode
             self.trigger = trigger
             self.doc_num = doc_num
-            config_str = "zeroshot_RAG"
+            config_str = "Direct_RAG"
             config_str += f"_{self.query_mode}"
             if self.trigger:
                 self.trigger_value = float(trigger_value)
@@ -86,26 +65,12 @@ class MultiHopSolver:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Using device: {self.device}")
 
-        # Get number of available GPUs
-        self.num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
-        print(f"Number of available GPUs: {self.num_gpus}")
 
-        # Initialize Mistral model
-        try:
-            print("Initializing Mistral model...")
-            self.llm = LLM(
-                    model="/data//models/mistral",
-                    dtype="float16",  # 또는 "bfloat16"
-                    trust_remote_code=True,
-                    tensor_parallel_size=self.num_gpus  # Use available GPU count
-                )
-
-        except Exception as e:
-            print(f"Error initializing Mistral model: {e}")
-            raise
+        # Initialize model
+        self.model = Model(self.model_name)
 
         # Initialize DPR components
-        if self.mode == "zeroshot_RAG" or self.mode == "Step_RAG" or self.mode == "Step_RAG_EX":
+        if self.mode == "Direct_RAG" or self.mode == "Step_RAG":
             print("Setting up Retrieval System...")
             self.setup_wiki_retriever()
         
@@ -146,24 +111,10 @@ class MultiHopSolver:
             raise
 
     def generate_text(self, prompt, max_length=384, temperature=0.15):
-        try:
-            sampling_params = SamplingParams(
-                max_tokens=max_length,
-                temperature=temperature
-            )
-            response = self.llm.generate([prompt], sampling_params=sampling_params)
-            response = response[0].outputs[0].text
-            print("="*50)
-            print(f"Prompt: \n{prompt}")
-            print(f"Response: \n{response}")
-            return response
-            
-        except Exception as e:
-            print(f"Error in text generation: {e}")
-            return ""
+        return self.model.generate_text(prompt, max_length=max_length, temperature=temperature)
 
 
-    def solve_with_zeroshot_COT(self, problem):
+    def solve_with_Direct_COT(self, problem):
         prompt = f"""You are solving a multiple choice question. Think step by step and show your reasoning clearly.  
         At the end, state your answer in the format: "The final answer is (X)".
         Here, X must be the correct letter choice.
@@ -202,7 +153,7 @@ class MultiHopSolver:
             print(f"Error in solve_with_step_back: {e}")
             return ""
         
-    def solve_with_zeroshot_PS(self, problem):
+    def solve_with_Direct_PS(self, problem):
         prompt = f"""
         Let's first understand the problem and devise a plan to solve the problem. 
         Then, let's carry out the plan and solve the problem step by step. 
@@ -230,7 +181,7 @@ class MultiHopSolver:
             print(f"Error in solve_with_zeroshot: {e}")
             return ""
 
-    def solve_with_zeroshot_RAG(self, problem, documents):
+    def solve_with_Direct_RAG(self, problem, documents):
         prompt = f"""
         You are given a multiple choice question and a set of related documents.
 
@@ -309,25 +260,7 @@ class MultiHopSolver:
             return subquestion
         elif query_mode == "q0" :
             return query
-        elif query_mode == "q1" :
-            prompt = f"""
-            You are given a search query.
-
-            Briefly explain the core concept or relationship described by the query in 2–3 sentences. Focus only on the essential scientific or mathematical idea.
-
-            Search Query: {query}
-            Explanation: 
-            """
-            response = self.generate_text(prompt, max_length=100)
-            if response == None:
-                return ""
-            else:
-                for i, line in enumerate(response.split("\n")):
-                    line = line.strip()
-                    if line.startswith("Search Query:"):
-                        return "\n".join(response.split("\n")[:i])
-                return response
-        elif query_mode == "q2":
+        elif query_mode == "RAISE":
             prompt = f"""
             You are given a subquestion and a search query.
             The search query is a realistic phrase that someone might use to find knowledge or reasoning support to answer the subquestion.
@@ -351,63 +284,6 @@ class MultiHopSolver:
                     if line.startswith("Subquestion:"):
                         return "\n".join(response.split("\n")[:i])
             return response
-                        
-
-        elif query_mode == "q3":
-            prompt = f"""
-            You are an expert in Science. You are given a science problem. Your task is to write a realistic search query that would help someone find the scientific concepts, principles, or methods needed to solve the problem. The query should reflect how someone might search online to understand and solve the question.
-
-            Here are a few examples:
-
-            Question: A block slides down a frictionless incline. What is its acceleration?
-            Search Query: how to calculate acceleration on frictionless inclined plane
-
-            Question: What is the pH of a 0.01 M HCl solution?
-            Search Query: how to find pH of strong acid solution using concentration
-
-            Question: During cellular respiration, what is the role of the mitochondria?
-            Search Query: mitochondria function in ATP production during aerobic respiration
-
-            Question: Why does Earth experience seasons?
-            Search Query: how earth’s axial tilt causes seasons
-
-            Question: A Punnett square is used to cross two heterozygous parents. What is the expected genotype ratio?
-            Search Query: punnett square for heterozygous cross genotype probability
-
-            Question: What causes tectonic plates to move?
-            Search Query: causes of tectonic plate movement and mantle convection
-
-            Question: {subquestion}
-            Search Query:
-            """
-            response = self.generate_text(prompt, max_length=100)
-            if response == None:
-                return ""
-            else:
-                query = response
-                for i, line in enumerate(response.split("\n")):
-                    line = line.strip()
-                    if line.startswith("Question:"):
-                        query =  "\n".join(response.split("\n")[:i])
-                        break
-                
-                prompt = f"""
-                You are given a search query.
-
-                Briefly explain the core concept or relationship described by the query in 2–3 sentences. Focus only on the essential scientific or mathematical idea.
-
-                Search Query: {query}
-                """
-                response = self.generate_text(prompt, max_length=100)
-                if response == None:
-                    return ""
-                else:
-                    for i, line in enumerate(response.split("\n")):
-                        line = line.strip()
-                        if line.startswith("Search Query:"):
-                            return "\n".join(response.split("\n")[:i])
-                            
-                    return response
             
         elif query_mode == "step-back":
             prompt = f"""
@@ -425,27 +301,7 @@ class MultiHopSolver:
                     if line.startswith("Question:"):
                         return "\n".join(response.split("\n")[:i])
                 return response
-        elif query_mode == "step-hyde":
-            prompt = f"""
-            You are an expert at Science. You are given a Science problem. Your task is to extract the Science concepts and principles involved in solving the problem.
 
-            Question: {subquestion}
-            Principles Involved:
-            """
-            response = self.generate_text(prompt, max_length=100)
-            prompt = f"""
-            Generate a paragraph that explains the principle.
-
-            Principles: {response}"""
-            response = self.generate_text(prompt, max_length=100)
-            if response == None:
-                return ""
-            else:
-                for i, line in enumerate(response.split("\n")):
-                    line = line.strip()
-                    if line.startswith("Question:"):
-                        return "\n".join(response.split("\n")[:i])
-                return response
         elif query_mode == "hyde":
             prompt = f"""
             Generate a paragraph that answers the question.
@@ -461,7 +317,7 @@ class MultiHopSolver:
                         return "\n".join(response.split("\n")[:i])
                 return response
         else:
-            raise ValueError(f"Invalid query mode: {query_mode}. Query mode should be one of subq, q0, q1, q2, q3 hyde, step-back")
+            raise ValueError(f"Invalid query mode: {query_mode}. Query mode should be one of subq, raise, hyde, step-back")
 
 
     def generate_subquestions(self, problem):
@@ -873,24 +729,24 @@ class MultiHopSolver:
         # Add timing dictionary
         start_total = time.time()
 
-        if self.mode == "zeroshot_COT":
-            final_solution = self.solve_with_zeroshot_COT(problem)
+        if self.mode == "Direct_COT":
+            final_solution = self.solve_with_Direct_COT(problem)
             file_print(f"Solution: {final_solution}")
 
-        elif self.mode == "zeroshot_PS":
-            final_solution = self.solve_with_zeroshot_PS(problem)
+        elif self.mode == "Direct_PS":
+            final_solution = self.solve_with_Direct_PS(problem)
             file_print(f"Solution: {final_solution}")
 
-        elif self.mode == "zeroshot_RAG":
+        elif self.mode == "Direct_RAG":
             search_query = ""
             if self.query_mode == "q1":
                 search_query = self.generate_search_query(problem['question'])
             query = self.generate_query(problem['question'], self.query_mode, search_query)
             documents, select_num, distances = self.get_wiki_search_results(query, self.doc_num)
             if select_num == 0:
-                final_solution = self.solve_with_zeroshot_COT(problem)
+                final_solution = self.solve_with_Direct_COT(problem)
             else:
-                final_solution = self.solve_with_zeroshot_RAG(problem, documents)
+                final_solution = self.solve_with_Direct_RAG(problem, documents)
             file_print(f"Query: {query}")
             file_print(f"There are {select_num} documents")
             file_print(f"Distances: {distances}")
@@ -912,7 +768,7 @@ class MultiHopSolver:
             file_print("--------------------------------")
             
             if len(subquestions) == 0:
-                final_solution = self.solve_with_zeroshot_COT(problem)
+                final_solution = self.solve_with_Direct_COT(problem)
                 file_print(f"Solution: {final_solution}")
             else:
                 solutions = []
@@ -953,33 +809,8 @@ class MultiHopSolver:
                         file_print(f"Solution: {solution}")
                         file_print("--------------------------------")
 
-                    elif self.mode == "Step_RAG_EX":
-                        query = self.generate_query(subquestion, self.query_mode, query)
-                        if query == "":
-                            solution = self.solve_subquestion_base(problem, step_num, subquestions, solutions)
-                        else:
-                            documents, select_num, distances = self.get_wiki_search_results(query, self.doc_num)
-                            if select_num == 0:
-                                solution = self.solve_subquestion_base(problem, step_num, subquestions, solutions)
-                            else:
-                                examples = self.generate_examples(step_num, problem, documents, subquestions)
-                                solution = self.solve_subquestion_with_ex(problem, step_num, subquestions, solutions, examples)
-                        solutions.append(solution)
-                        
-                        if query=="":
-                            file_print("Error: Query is empty")
-                        else:
-                            file_print(f"Query: {query}")
-                            file_print(f"There are {select_num} documents")
-                            file_print(f"Distances: {distances}")
-                            if select_num>0:
-                                file_print(f"Documents: {documents}")
-                                file_print(f"Examples: {examples}")
-                        file_print(f"Solution: {solution}")
-                        file_print("--------------------------------")
-
                     else:
-                        raise ValueError(f"Invalid mode: {self.mode}. Mode should be one of zeroshot_COT, zeroshot_PS, zeroshot_RAG,step_back, PD, Step_RAG, Step_RAG_EX")
+                        raise ValueError(f"Invalid mode: {self.mode}. Mode should be one of Direct_COT, Direct_PS, Direct_RAG,step_back, PD, PD_step_back, Step_RAG")
                 file_print("--------------------------------")
                 file_print(f"\n\nStage 3: Generate final answer")
                 final_solution = self.generate_final_answer(problem, subquestions, solutions)

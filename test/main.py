@@ -12,7 +12,7 @@ def main():
     parser.add_argument('--dataset', type=str, default="gpqa", help='Dataset to use: [gpqa, supergpqa, mmlu_stem, mmlu_pro]')
     parser.add_argument('--subject', type=str, default=None, help='Subject to process for mmlu_stem, mmlu_pro, supergpqa')
     parser.add_argument('--difficulty', type=str, default=None, help='Difficulty level for supergpqa')
-    parser.add_argument('--model', type=str, default="gpt-3.5-turbo", help='Model to use')
+    parser.add_argument('--model_name', type=str, default="mistralai/Mistral-Small-3.1-24B-Instruct-2503", help='Model to use')
     parser.add_argument('--mode', type=str, default="Step_RAG", help='Mode to use')
     parser.add_argument('--trigger', action='store_true', help='Whether to use trigger')
     parser.add_argument('--trigger_value', type=float, default=0.8, help='Trigger value')
@@ -30,12 +30,12 @@ def main():
 
     # Create a single MultiHopSolver instance
     solver = MultiHopSolver(
-        model = args.model,
         mode = args.mode,
         trigger = args.trigger,
         trigger_value = args.trigger_value,
         doc_num = args.doc_num,
         query_mode = args.query_mode,
+        model_name = args.model_name
     )
 
     
