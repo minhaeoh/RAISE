@@ -1,6 +1,6 @@
 # RAISE Project
 
-This repository contains the RAISE (Research on AI and Software Engineering) project.
+This repository contains the RAISE (step-by-step Retrieval-Augmented Inference for Scientific rEasoning) project.
 
 ## Project Structure
 
