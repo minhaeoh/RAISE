@@ -9,6 +9,19 @@ This repository contains the RAISE (step-by-step Retrieval-Augmented Inference f
 - `test/` - Test files
 - `ablations/` - Ablation study files
 
+## Configuration Notes
+Before running the experiments, make sure to update the following file paths in the code:
+```python
+# dataset.py
+data_path = "path/to/your/gpqa/file.json"
+
+# model.py
+env_path = "/path/to/.env"
+
+# solver.py
+base_dir = "/path/to/your/results/directory"
+```
+
 ## Getting Started
 To run an experiment, use the following command:
 
@@ -23,4 +36,4 @@ python main.py --dataset gpqa --model_name llama --mode Step_RAG --query_mode RA
 | `--difficulty` | **Required only for** `supergpqa`. Options:<br>• `hard`<br>• `middle`<br>• `easy`                                                                                                 |
 | `--model_name` | Name of the base model to use. Options: <br>• `llama` (for LLama-3.1-8B-instruct)<br>•  `mistral` (for Mistral-Small-3.1-24B-Instruct-2503)<br>•  `gpt` (for gpt-4o-mini)                                                                                                                      |
 | `--mode`       | Reasoning strategy to apply. Options:<br>• `Direct_COT`<br>• `Direct_PS`<br>• `Direct_RAG`<br>• `step_back`<br>• `PD` (Problem Decomposition)<br>• `PD_step_back`<br>• `Step_RAG` |
-| `--query_mode` | **Required only for** `Direct_RAG` and `Step_RAG`. Options:<br>• `subq`<br>• `RAISE`<br>• `step-back`<br>• `hyde`                                                                 |
+| `--query_mode` | **Required only for** `Direct_RAG` and `Step_RAG`. Options:<br>• `question`<br>• `RAISE`<br>• `step-back`<br>• `hyde`                                                                 |
