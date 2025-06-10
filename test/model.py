@@ -8,11 +8,12 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import re
+
 class Model:
     def __init__(self, model_name):
-        env_path = "/home/minhae/multihop-RAG2/.env"
+        env_path = "/path/to/.env"
         load_dotenv(dotenv_path=env_path)
-        self.hf_token = os.getenv('HF_TOKEN')
+        self.hf_token = os.getenv('HUGGINGFACE_TOKEN')
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         if 'llama' in model_name:
             self.model_name = "meta-llama/Llama-3.1-8B-Instruct"
@@ -22,14 +23,15 @@ class Model:
             self.model_name = "gpt-4o-mini"
         else:
             self.model_name = model_name
+        self.load_model()
         
     def load_model(self):
         if self.model_name == "mistralai/Mistral-Small-3.1-24B-Instruct-2503":
-            self.num_gpus = 2 if torch.cuda.is_available() else 0
+            self.num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
             try:
                 self.model = LLM(
-                        model="/data//models/mistral",
-                        dtype="float16",  # 또는 "bfloat16"
+                        model=self.model_name,
+                        dtype="float16", 
                         trust_remote_code=True,
                         tensor_parallel_size=self.num_gpus  # Use available GPU count
                     )
@@ -40,13 +42,13 @@ class Model:
         elif self.model_name == "meta-llama/Llama-3.1-8B-Instruct":
             try:
                 self.tokenizer = AutoTokenizer.from_pretrained(
-                    self.model_id,
+                    self.model_name,
                     token=self.hf_token
                 )
                 self.tokenizer.pad_token = self.tokenizer.eos_token
                 self.tokenizer.padding_side = "left"
                 self.model = AutoModelForCausalLM.from_pretrained(
-                    self.model_id,
+                    self.model_name,
                     torch_dtype=torch.bfloat16,
                     device_map="auto",
                     token=self.hf_token
@@ -64,10 +66,8 @@ class Model:
             except Exception as e:
                 print(f"Error in loading GPT-4o-mini model: {e}")
                 raise
-        return self.model
     
     def generate_text(self, prompt, max_length=384, temperature=0.15):
-        self.model = self.load_model()
         if self.model_name == "mistralai/Mistral-Small-3.1-24B-Instruct-2503":
             sampling_params = SamplingParams(
                 max_tokens=max_length,
@@ -101,7 +101,10 @@ class Model:
                 if not line:
                     continue
                 if 'the final answer is' in line.lower():
+                    line = line.split(".")[0]
                     lines.append(line)
+                    break
+                elif 'python' in line.lower():
                     break
                 else:
                     lines.append(line)
@@ -119,6 +122,50 @@ class Model:
                 max_tokens=max_length
             )
             return response.choices[0].message.content
+
+def main():
+    test_models = [
+        "mistral",
+        "llama",
+        "gpt"
+    ]
     
+    # 테스트할 프롬프트들
+    test_prompts = [
+        "What is the capital of France?",
+        "Explain the concept of machine learning in simple terms."
+    ]
+    
+    for model_type in test_models:
+        print(f"\n--- Testing {model_type.upper()} Model ---")
+        try:
+            model = Model(model_type)
+            print(f"Model initialized: {model.model_name}")
+            
+            for i, prompt in enumerate(test_prompts, 1):
+                print(f"\nTest {i}: {prompt}")
+                print("-" * 50)
+                
+                try:
+                    response = model.generate_text(
+                        prompt=prompt,
+                        max_length=200,  
+                        temperature=0.7
+                    )
+                    
+                    print(f"Response: {response}")
+                    print(f"Response length: {len(response)} characters")
+                    
+                except Exception as e:
+                    print(f"Error generating text: {e}")
+                    
+        except Exception as e:
+            print(f"Error initializing {model_type} model: {e}")
+            continue
+    
+    print("\n=== Test Complete ===")
+
+if __name__ == "__main__":
+    main()
         
         

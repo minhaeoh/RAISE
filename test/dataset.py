@@ -78,7 +78,8 @@ def load_mmlu_pro(config: DatasetConfig) -> Dict[str, Any]:
     return problems
 
 def load_gpqa(config: DatasetConfig) -> Dict[str, Any]:
-    data_path = "path/to/your/gpqa/file.json"  # 실제 파일 경로로 수정 필요
+    print("Loading GPQA dataset...")
+    data_path = "path/to/your/gpqa/file.json"  
     if not os.path.exists(data_path):
         print(f"GPQA dataset file not found at: {data_path}")
         dataset = load_dataset("Idavidrein/gpqa", "gpqa_diamond", cache_dir=config.cache_dir)
@@ -115,6 +116,7 @@ def load_gpqa(config: DatasetConfig) -> Dict[str, Any]:
             problems = json.load(f)
 
     print(f"Found {len(problems)} problems")
+    print("Data formatted successfully")
 
     return problems
 
@@ -143,7 +145,7 @@ def load_supergpqa(config: DatasetConfig) -> Dict[str, Any]:
         answer_choices['label'] = options
         problem['choices'] = answer_choices
         problems.append(problem)
-        
+    print(f"Found {len(problems)} problems")    
     print("Data formatted successfully")
     return problems
 

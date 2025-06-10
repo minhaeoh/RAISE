@@ -9,10 +9,10 @@ from model import *
 
 def main():
     parser = argparse.ArgumentParser(description='Run MultiHopSolver on MMLU-STEM dataset')
-    parser.add_argument('--dataset', type=str, default="gpqa", help='Dataset to use: [gpqa, supergpqa, mmlu_stem, mmlu_pro]')
+    parser.add_argument('--dataset', type=str, default="gpqa", help='Dataset to use: [gpqa, supergpqa, mmlu_pro]')
     parser.add_argument('--subject', type=str, default=None, help='Subject to process for mmlu_stem, mmlu_pro, supergpqa')
     parser.add_argument('--difficulty', type=str, default=None, help='Difficulty level for supergpqa')
-    parser.add_argument('--model_name', type=str, default="mistralai/Mistral-Small-3.1-24B-Instruct-2503", help='Model to use')
+    parser.add_argument('--model_name', type=str, default="llama", help='Model to use')
     parser.add_argument('--mode', type=str, default="Step_RAG", help='Mode to use')
     parser.add_argument('--trigger', action='store_true', help='Whether to use trigger')
     parser.add_argument('--trigger_value', type=float, default=0.8, help='Trigger value')

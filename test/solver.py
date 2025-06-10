@@ -33,7 +33,7 @@ class MultiHopSolver:
             config_str = "Direct_COT"
         elif self.mode == "Direct_PS":
             config_str = "Direct_PS"
-        elif self.mode == "step-back":
+        elif self.mode == "step_back":
             config_str = "step-back"
         elif self.mode == "Direct_RAG":
             self.query_mode = query_mode
@@ -67,6 +67,7 @@ class MultiHopSolver:
 
 
         # Initialize model
+        print(f"Initializing model: {self.model_name}")
         self.model = Model(self.model_name)
 
         # Initialize DPR components
@@ -253,10 +254,16 @@ class MultiHopSolver:
                 letters = re.findall(r'[A-D]', answer)
                 if letters:
                     return letters[0]
+            elif "the correct answer is" in line.lower():
+                line = line.replace("The correct answer is", "the correct answer is").strip()
+                answer = line.split("the correct answer is")[1].strip()
+                letters = re.findall(r'[A-D]', answer)
+                if letters:
+                    return letters[0]
         return "None"
 
     def generate_query(self, subquestion, query_mode, query):
-        if query_mode == "subq":
+        if query_mode == "question":
             return subquestion
         elif query_mode == "q0" :
             return query
@@ -317,7 +324,7 @@ class MultiHopSolver:
                         return "\n".join(response.split("\n")[:i])
                 return response
         else:
-            raise ValueError(f"Invalid query mode: {query_mode}. Query mode should be one of subq, raise, hyde, step-back")
+            raise ValueError(f"Invalid query mode: {query_mode}. Query mode should be one of question, raise, hyde, step-back")
 
 
     def generate_subquestions(self, problem):
@@ -343,6 +350,17 @@ class MultiHopSolver:
             """
         try:
             response = self.generate_text(prompt, max_length=1000)
+            for i, line in enumerate(response.split("\n")):
+                line = line.strip()
+                if line.startswith("Question:"):
+                    response = "\n".join(response.split("\n")[:i])
+                    break
+                if line.startswith("End of generation"):
+                    response = "\n".join(response.split("\n")[:i])
+                    break
+                elif "End of generation" in line:
+                    response = "\n".join(response.split("\n")[:i+1])
+                    break
             subquestions = []
             queries = []
             for line in response.split("\n"):
@@ -406,7 +424,7 @@ class MultiHopSolver:
         """
 
         try:
-            response = self.generate_text(prompt, max_length=1000)
+            response = self.generate_text(prompt, max_length=500)
             for i, line in enumerate(response.split("\n")):
                 line = line.strip()
                 if line.startswith("Subquestion") and i>0:
@@ -462,10 +480,12 @@ class MultiHopSolver:
         """
 
         try:
-            response = self.generate_text(prompt, max_length=1000)
+            response = self.generate_text(prompt, max_length=500)
             for i, line in enumerate(response.split("\n")):
                 line = line.strip()
                 if line.startswith("Subquestion") and i>0:
+                    return "\n".join(response.split("\n")[:i])
+                elif line.startswith("Answer") and i>0:
                     return "\n".join(response.split("\n")[:i])
             return response
         except Exception as e:
@@ -504,7 +524,7 @@ class MultiHopSolver:
         
 
         try:
-            response = self.generate_text(prompt, max_length=1000)
+            response = self.generate_text(prompt, max_length=500)
             for i, line in enumerate(response.split("\n")):
                 line = line.strip()
                 if line.startswith("Subquestion") and i>0:
@@ -546,7 +566,7 @@ class MultiHopSolver:
         Subquestion {step_num} Solution:
         """
         try:
-            response = self.generate_text(prompt, max_length=1000)
+            response = self.generate_text(prompt, max_length=500)
             for i, line in enumerate(response.split("\n")):
                 line = line.strip()                
                 if line.startswith("Subquestion") and i>0:
@@ -583,7 +603,7 @@ class MultiHopSolver:
         Subquestion {step_num}: {subquestions[step_num-1]}
         """
         try:
-            response = self.generate_text(prompt, max_length=1000)
+            response = self.generate_text(prompt, max_length=500)
             
             # Initialize variables to track the start and end indices
             start_idx = None
@@ -612,7 +632,11 @@ class MultiHopSolver:
 
     def generate_final_answer(self, problem, subquestions, subsolutions):
         prompt = f"""
-        You are solving a multiple-choice question. Question is decomposed into several subquestions. Each subquestion has already been solved. Your task is to carefully read the original question and the several subquestion solutions, then use them to determine the final answer. Think step by step and then finish your answer with "The final answer is (X)" where X is the correct letter choice.
+        You are solving a multiple-choice question. 
+        Question is decomposed into several subquestions. Each subquestion has already been solved. 
+        Your task is to carefully read the original question and the several subquestion solutions, then use them to determine the final answer. 
+        
+        Think step by step and then finish your answer with "The final answer is (X)" where X is the correct letter choice.
 
         Original Question:
         Question: {problem['question']}
@@ -627,14 +651,14 @@ class MultiHopSolver:
             """
 
         try:
-            response = self.generate_text(prompt, max_length=1500)
+            response = self.generate_text(prompt, max_length=1000)
             return response
         except Exception as e:
             print(f"Error in generate_final_answer: {e}")
             return ""
 
     def solve_problem(self, prob_num, problem=None):
-        base_dir = f"/path/to/your/output"
+        base_dir = "/path/to/your/results/directory"
         self.output_dir = os.path.join(base_dir, f"{self.config_str}",self.timestamp)
         if prob_num == 1:
             os.makedirs(self.output_dir, exist_ok=True)
@@ -654,7 +678,7 @@ class MultiHopSolver:
         if prob_num == 1:
             summary_print("Configuration Information:")
             summary_print("=" * 50)
-            summary_print(f"Model ID: {self.model_id}")
+            summary_print(f"Model: {self.model_name}")
             summary_print(f"Mode: {self.mode}")
             summary_print(f"Query Mode: {self.query_mode}")
             summary_print(f"Trigger: {self.trigger}")
@@ -689,7 +713,7 @@ class MultiHopSolver:
 
         elif self.mode == "Direct_RAG":
             search_query = ""
-            if self.query_mode == "q1":
+            if self.query_mode == "RAISE":
                 search_query = self.generate_search_query(problem['question'])
             query = self.generate_query(problem['question'], self.query_mode, search_query)
             documents, select_num, distances = self.get_wiki_search_results(query, self.doc_num)
@@ -799,7 +823,7 @@ class MultiHopSolver:
             
             file_print(f"Predicted Answer: {predicted_answer}")
             file_print(f"Actual Answer: {correct_answer}")
-            file_print(f"Running Accuracy: {self._current_accuracy:.2%}")
+            file_print(f"Running Accuracy: {self._current_accuracy:.2f}%")
         # Print timing statistics
         total_time = time.time() - start_total
         file_print(f"Total Time: {total_time:.2f} seconds")
