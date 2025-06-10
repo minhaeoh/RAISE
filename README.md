@@ -2,13 +2,6 @@
 
 This repository contains the RAISE (step-by-step Retrieval-Augmented Inference for Scientific rEasoning) project.
 
-## Project Structure
-
-- `codes/` - Source code files
-- `dataset/` - Dataset files
-- `test/` - Test files
-- `ablations/` - Ablation study files
-
 ## Configuration Notes
 Before running the experiments, make sure to update the following file paths in the code:
 ```python
