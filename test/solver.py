@@ -321,56 +321,7 @@ class MultiHopSolver:
 
 
     def generate_subquestions(self, problem):
-        if self.prompt:
-            prompt = f"""
-            You are given a multiple-choice question. Your task is to break it down into a step-by-step reasoning process by generating essential **subquestions** and corresponding **search queries**.
-
-    Each **subquestion** should be a concrete reasoning step that brings you closer to solving the original question. Think of it as an intermediate goal that must be answered—something a student would actually write down or solve while working through the problem.
-
-    Each **search query** should express what someone would realistically search for to find the general concept, principle, or scientific knowledge needed to solve the corresponding subquestion. Avoid using specific values, phrases, or details from the original question unless absolutely necessary.
-
-    The goal is to simulate how a student would think through the problem, identifying what must be solved and what knowledge is needed to solve it.
-
-    ---
-
-    STRICT FORMAT REQUIREMENTS:
-    1. For each subquestion, provide exactly two parts in this order:
-    - The subquestion (a concrete intermediate problem to be solved)
-    - The search query (general knowledge needed to solve the subquestion)
-
-    2. Use EXACTLY this format for each subquestion:
-    Subquestion 1: [Concrete reasoning step—may include values or variables from the original question]  
-    Search Query for Subquestion 1: [General, reusable query that reflects background knowledge for solving this step]
-
-    ---
-
-    EXAMPLE:
-
-    Question: An unknown substance is found to have a high melting point. In addition, it is a poor conductor of electricity and does not dissolve in water. The substance most likely contains  
-    Answer Choices: ['(A) dipole-dipole bonding', '(B) ionic bonding', '(C) covalent network bonding', '(D) nonpolar covalent bonding', '(E) coordinate covalent bonding', '(F) London dispersion bonding', '(G) van der Waals bonding', '(H) metallic bonding', '(I) hydrogen bonding', '(J) polar covalent bonding']
-
-    Subquestion 1: Which bonding types are typically associated with high melting points?  
-    Search Query for Subquestion 1: bonding types with high melting points
-
-    Subquestion 2: Of those bonding types, which are poor conductors of electricity in solid and liquid state?  
-    Search Query for Subquestion 2: electrical conductivity of solids by bonding type
-
-    Subquestion 3: Which of the remaining bonding types are typically insoluble in water?  
-    Search Query for Subquestion 3: solubility of different bonding types in water
-
-    Subquestion 4: Which bonding type satisfies all three conditions: high melting point, poor conductivity, and insolubility?  
-    Search Query for Subquestion 4: properties of covalent network solids
-
-    ---
-    End your response with "End of generation" after you answer the instructions.
-
-    Now complete the following:
-
-    Question: {problem['question']}
-    Answer Choices: {problem['choices']['text']}
-            """
-        else:
-            prompt = f"""
+        prompt = f"""
             You are given a multiple-choice question.
             Break this problem into essential subquestions that directly help solve the original problem.
             Each subquestion MUST also include its search query.
@@ -408,7 +359,6 @@ class MultiHopSolver:
             print(f"Error in generate_subquestions: {e}")
             return [], []
         
-        return subquestions, queries
 
     def generate_search_query(self, question):
         prompt = f"""
